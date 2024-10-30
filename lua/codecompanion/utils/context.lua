@@ -64,14 +64,6 @@ function M.get_visual_selection(bufnr)
 
   local lines = vim.api.nvim_buf_get_lines(bufnr, start_line - 1, end_line, false)
 
-  -- handle partial lines
-  if #lines == 1 then
-    lines[1] = lines[1]:sub(start_col, end_col)
-  else
-    lines[1] = lines[1]:sub(start_col)
-    lines[#lines] = lines[#lines]:sub(1, end_col)
-  end
-
   return lines, start_line, start_col, end_line, end_col
 end
 
