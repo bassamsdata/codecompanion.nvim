@@ -31,33 +31,46 @@ end
 
 ---@param bufnr nil|integer
 ---@return table,number,number,number,number
-function M.get_visual_selection(bufnr)
-  bufnr = bufnr or 0
+function m.get_visual_selection(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
 
-  api.nvim_feedkeys(ESC_FEEDKEY, "n", true)
-  api.nvim_feedkeys("gv", "x", false)
-  api.nvim_feedkeys(ESC_FEEDKEY, "n", true)
+  -- store the current mode
+  local mode = vim.fn.mode()
 
-  local end_line, end_col = unpack(api.nvim_buf_get_mark(bufnr, ">"))
-  local start_line, start_col = unpack(api.nvim_buf_get_mark(bufnr, "<"))
-  local lines = api.nvim_buf_get_lines(bufnr, start_line - 1, end_line, false)
-
-  -- get whole buffer if there is no current/previous visual selection
-  if start_line == 0 then
-    lines = api.nvim_buf_get_lines(bufnr, 0, -1, false)
-    start_line = 1
-    start_col = 0
-    end_line = #lines
-    end_col = #lines[#lines]
+  -- if we're not in visual mode, we need to re-enter it briefly
+  if mode ~= "v" and mode ~= "v" and mode ~= "" then
+    vim.cmd("normal! gv")
   end
 
-  -- use 1-based indexing and handle selections made in visual line mode (see :help getpos)
-  start_col = start_col + 1
-  end_col = math.min(end_col, #lines[#lines] - 1) + 1
+  -- now we can get the positions
+  local start_pos = vim.fn.getpos("v")
+  local end_pos = vim.fn.getpos(".")
 
-  -- shorten first/last line according to start_col/end_col
-  lines[#lines] = lines[#lines]:sub(1, end_col)
-  lines[1] = lines[1]:sub(start_col)
+  -- exit visual mode
+  if mode ~= "v" and mode ~= "v" and mode ~= "" then
+    vim.cmd("normal! " .. vim.api.nvim_replace_termcodes("<esc>", true, false, true))
+  end
+
+  local start_line = start_pos[2]
+  local start_col = start_pos[3]
+  local end_line = end_pos[2]
+  local end_col = end_pos[3]
+
+  -- normalize the range to start < end
+  if start_line > end_line or (start_line == end_line and start_col > end_col) then
+    start_line, end_line = end_line, start_line
+    start_col, end_col = end_col, start_col
+  end
+
+  local lines = vim.api.nvim_buf_get_lines(bufnr, start_line - 1, end_line, false)
+
+  -- handle partial lines
+  if #lines == 1 then
+    lines[1] = lines[1]:sub(start_col, end_col)
+  else
+    lines[1] = lines[1]:sub(start_col)
+    lines[#lines] = lines[#lines]:sub(1, end_col)
+  end
 
   return lines, start_line, start_col, end_line, end_col
 end
