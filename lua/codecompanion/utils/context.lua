@@ -31,7 +31,7 @@ end
 
 ---@param bufnr nil|integer
 ---@return table,number,number,number,number
-function m.get_visual_selection(bufnr)
+function M.get_visual_selection(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
 
   -- store the current mode
