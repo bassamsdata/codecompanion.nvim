@@ -38,7 +38,7 @@ function M.get_visual_selection(bufnr)
   local mode = vim.fn.mode()
 
   -- if we're not in visual mode, we need to re-enter it briefly
-  if mode ~= "v" and mode ~= "v" and mode ~= "" then
+  if not is_visual_mode(mode) then
     vim.cmd("normal! gv")
   end
 
@@ -47,8 +47,8 @@ function M.get_visual_selection(bufnr)
   local end_pos = vim.fn.getpos(".")
 
   -- exit visual mode
-  if mode ~= "v" and mode ~= "v" and mode ~= "" then
-    vim.cmd("normal! " .. vim.api.nvim_replace_termcodes("<esc>", true, false, true))
+  if not is_visual_mode(mode) then
+    vim.cmd("normal! " .. ESC_FEEDKEY)
   end
 
   local start_line = start_pos[2]
