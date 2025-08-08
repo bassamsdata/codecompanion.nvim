@@ -212,6 +212,11 @@ function Executor:error(action, error)
     table.insert(self.agent.stderr, error)
     log:warn("Tool %s: %s", self.tool.name, error)
   end
+  -- Finish tool monitoring with error status
+  if self.tool and self.tool.name then
+    local edit_tracker = require("codecompanion.strategies.chat.edit_tracker")
+    edit_tracker.finish_tool_monitoring(self.tool.name, self.agent.chat, false)
+  end
   self.output.error(action)
   self:setup()
 end
@@ -223,6 +228,11 @@ end
 function Executor:success(action, output)
   log:debug("Executor:success")
   self.agent.status = self.agent.constants.STATUS_SUCCESS
+  -- Direct call to finish tool monitoring
+  if self.tool and self.tool.name then
+    local edit_tracker = require("codecompanion.strategies.chat.edit_tracker")
+    edit_tracker.finish_tool_monitoring(self.tool.name, self.agent.chat, true)
+  end
   if output then
     table.insert(self.agent.stdout, output)
   end
