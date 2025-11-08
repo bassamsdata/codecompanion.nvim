@@ -122,6 +122,22 @@ local function register_custom_adapters(config)
     if adapter_def.env then
       custom_config.env = adapter_def.env
     end
+
+    -- Override env with API key from config if provided
+    if config.api_keys and config.api_keys[adapter_name] then
+      local api_key = config.api_keys[adapter_name]
+      if type(api_key) == "function" then
+        local key_ok, key_value = pcall(api_key)
+        if key_ok and key_value then
+          custom_config.env = custom_config.env or {}
+          custom_config.env.api_key = key_value
+        end
+      elseif type(api_key) == "string" and api_key ~= "" then
+        custom_config.env = custom_config.env or {}
+        custom_config.env.api_key = api_key
+      end
+    end
+
     if adapter_def.headers then
       custom_config.headers = adapter_def.headers
     end
@@ -270,7 +286,10 @@ local function save_result(results_dir, adapter_name, scenario_name, result)
 end
 
 local function run_scenario_for_adapter(adapter_config, scenario, config, args)
-  log(string.format("Testing %s with scenario: %s", adapter_config.name, scenario.name), "INFO")
+  log(
+    string.format("Testing %s/%s with scenario: %s", adapter_config.name, adapter_config.model, scenario.name),
+    "INFO"
+  )
 
   local result = {
     adapter = adapter_config.name,
@@ -308,30 +327,6 @@ local function run_scenario_for_adapter(adapter_config, scenario, config, args)
     return result
   end
 
-  -- Setup adapter with API key
-  local adapter_opts = {
-    adapter = adapter_config.name,
-    schema = {
-      model = {
-        default = adapter_config.model,
-      },
-    },
-  }
-
-  -- Inject API keys if available
-  if config.api_keys[adapter_config.name] then
-    if type(config.api_keys[adapter_config.name]) == "table" then
-      adapter_opts.env = config.api_keys[adapter_config.name]
-    elseif type(config.api_keys[adapter_config.name]) == "function" then
-      local key_ok, key_value = pcall(config.api_keys[adapter_config.name])
-      if key_ok and key_value then
-        adapter_opts.env = { api_key = key_value }
-      end
-    else
-      adapter_opts.env = { api_key = config.api_keys[adapter_config.name] }
-    end
-  end
-
   -- Create a test buffer for chat
   vim.cmd("enew")
   local bufnr = vim.api.nvim_get_current_buf()
@@ -353,6 +348,24 @@ local function run_scenario_for_adapter(adapter_config, scenario, config, args)
     result.duration_ms = (vim.uv.hrtime() - start_time) / 1000000
     return result
   end
+
+  -- Apply the model to the chat (this updates adapter.schema.model.default and settings.model)
+  if chat.apply_model then
+    local apply_ok, apply_err = pcall(function()
+      chat:apply_model(adapter_config.model)
+    end)
+    if not apply_ok then
+      result.error = "Failed to apply model: " .. tostring(apply_err)
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+      if scenario.cleanup then
+        pcall(scenario.cleanup, context)
+      end
+      result.duration_ms = (vim.uv.hrtime() - start_time) / 1000000
+      return result
+    end
+  end
+
+  log(string.format("  Using model: %s", adapter_config.model), "INFO", true)
 
   -- Automatic tool approval
   vim.g.codecompanion_yolo_mode = true
