@@ -253,11 +253,14 @@ local function log(msg, level, verbose_only)
 end
 
 local function save_result(results_dir, adapter_name, scenario_name, result)
+  -- Sanitize adapter name to replace all non-alphanumeric chars with underscores
+  local sanitized_adapter = adapter_name:gsub("[^%w]", "_")
+
   local filename = string.format(
     "%s/%s_%s_%s.json",
     results_dir,
     os.date("%Y%m%d_%H%M%S"),
-    adapter_name,
+    sanitized_adapter,
     scenario_name:gsub("%s+", "_")
   )
 
@@ -498,15 +501,17 @@ local function run_scenario_for_adapter(adapter_config, scenario, config, args)
   if completed then
     local validate_ok, validate_success, validation_details = pcall(scenario.validate, context)
     if validate_ok then
-      result.success = validate_success
+      -- Ensure success is always a boolean (validation might return truthy match results)
+      result.success = not not validate_success
       result.validation = validation_details
-      if not validate_success and not result.error then
+      if not result.success and not result.error then
         result.error = "Validation failed - file was not modified as expected"
-      elseif validate_success then
+      elseif result.success then
         -- Clear any premature errors if validation passed
         result.error = nil
       end
     else
+      result.success = false
       if not result.error then
         result.error = "Validation error: " .. tostring(validate_success)
       end

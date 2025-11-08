@@ -76,6 +76,7 @@ nvim config.local.lua
 
 Update the `api_keys` section:
 
+
 ```lua
 M.api_keys = {
   openai = "",
@@ -171,6 +172,8 @@ Then run those two commands:
 
 # If Errors/failed calls, Show failures and related files for inspection
 ./test.sh failures
+
+# NOTE: `jq` tool is recommended here and actually, it's very excellent for viewing JSON files in terminal
 ```
 
 

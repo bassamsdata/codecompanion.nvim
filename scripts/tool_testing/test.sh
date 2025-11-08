@@ -81,7 +81,7 @@ Examples:
     $0 run --adapter=anthropic --verbose
     $0 run --model=claude --verbose
     $0 run --scenario="Simple file edit"
-    $0 run --adapter=openai --delay=2000
+    $0 run --adapter=gemini --delay=2000
     $0 setup
     $0 results
     $0 failures
@@ -292,7 +292,7 @@ cmd_results() {
         cat "$latest_summary" | jq '.summary'
         echo ""
         echo "Detailed results:"
-        cat "$latest_summary" | jq -r '.results[] | "\(.adapter)/\(.scenario): \(if .success then "\u001b[0;32m✓ PASS\u001b[0m" else "\u001b[0;31m✗ FAIL\u001b[0m" end)"'
+        cat "$latest_summary" | jq -r '.results[] | "\(.adapter)/\(.model) - \(.scenario): \(if .success == true then "\u001b[0;32m✓ PASS\u001b[0m" else "\u001b[0;31m✗ FAIL\u001b[0m" end)"'
     else
         # Fallback to basic display
         cat "$latest_summary"
@@ -326,7 +326,8 @@ cmd_failures() {
 
     # Use jq if available
     if command -v jq &> /dev/null; then
-        local has_failures=$(cat "$latest_summary" | jq -r '.summary | (.failed + .errors) > 0')
+        # Check for failures (including null success values)
+        local has_failures=$(cat "$latest_summary" | jq -r '(.summary | (.failed + .errors) > 0) or ([.results[] | select(.success == null)] | length > 0)')
 
         if [ "$has_failures" = "false" ]; then
             echo -e "${GREEN}✓ No failures! All tests passed.${NC}"
@@ -344,8 +345,8 @@ cmd_failures() {
         echo "===================================="
         echo ""
 
-        # Extract failed/errored results
-        cat "$latest_summary" | jq -r '.results[] | select(.success == false) |
+        # Extract failed/errored results (success == false OR success == null)
+        cat "$latest_summary" | jq -r '.results[] | select(.success == false or .success == null) |
             "\(.adapter)/\(.model) - \(.scenario):",
             "  Status: \u001b[0;31m✗ \(if .error then "ERROR" else "FAIL" end)\u001b[0m",
             (if .error then "  Error: \(.error)" else empty end),
@@ -359,9 +360,10 @@ cmd_failures() {
         echo "Detailed Result Files:"
         echo "===================================="
 
-        # Get list of failed test identifiers
-        local failed_tests=$(cat "$latest_summary" | jq -r '.results[] | select(.success == false) |
-            "\(.adapter)_\(.model | gsub("/"; "_") | gsub("-"; "_"))_\(.scenario | gsub(" "; "_"))"')
+        # Get list of failed test identifiers (success == false OR success == null)
+        # Sanitize model name: replace all non-alphanumeric chars with underscores
+        local failed_tests=$(cat "$latest_summary" | jq -r '.results[] | select(.success == false or .success == null) |
+            "\(.adapter)_\(.model | gsub("[^a-zA-Z0-9]"; "_"))_\(.scenario | gsub(" "; "_"))"')
 
         # Find matching files
         while IFS= read -r test_id; do
@@ -384,10 +386,10 @@ cmd_failures() {
         echo "Scanning $total_files result files..."
         echo ""
 
-        # Find failed result files
+        # Find failed result files (success: false or success: null)
         for file in "$results_dir"/*.json; do
             if [ -f "$file" ] && [ "$(basename "$file")" != "summary_"* ]; then
-                if grep -q '"success": false' "$file" 2>/dev/null; then
+                if grep -q '"success": false\|"success": null' "$file" 2>/dev/null; then
                     echo -e "${RED}✗ FAILED:${NC} $(basename "$file")"
                     echo "  Path: $file"
                     # Try to extract error
